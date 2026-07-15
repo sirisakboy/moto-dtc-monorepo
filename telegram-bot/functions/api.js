@@ -1,58 +1,38 @@
-export default {
-  async fetch(request, env, ctx) {
-    try {
-      if (request.method !== 'POST') {
-        return new Response("OK - Use POST for analysis", { status: 200 });
+export async function onRequestPost(context) {
+  try {
+    const request = context.request;
+    const env = context.env; // ดึงค่าสภาพแวดล้อมระบบแปรผัน
+    const contentType = request.headers.get("content-type") || "";
+    
+    const BOT_TOKEN = env.TELEGRAM_BOT_TOKEN;
+    const cloudflareAI = env.AI;
+    
+    let userMessage = "";
+    let chatId = null;
+    
+    // ตรวจสอบช่องทางการยิงข้อมูล (Flutter หรือ Telegram)
+    const isFromFlutter = contentType.includes("application/json") && !request.headers.get("user-agent")?.includes("Telegram");
+    
+    if (isFromFlutter) {
+      const body = await request.json();
+      userMessage = body.dtc_code || body.message || "";
+    } else {
+      const payload = await request.json();
+      if (payload.message && payload.message.text) {
+        chatId = payload.message.chat.id;
+        userMessage = payload.message.text;
       }
+    }
 
-      const contentType = request.headers.get("content-type") || "";
-      const contentLength = request.headers.get("content-length");
-      
-      if (!contentLength || parseInt(contentLength) === 0) {
-        return new Response(JSON.stringify({ error: "Empty request body" }), { 
-          status: 400, 
-          headers: { "Content-Type": "application/json" }
-        });
-      }
+    if (!userMessage.trim()) {
+      return new Response(JSON.stringify({ error: "No message provided" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
 
-      // ดึงค่า Telegram Token และ AI binding
-      const BOT_TOKEN = env.TELEGRAM_BOT_TOKEN;
-      const cloudflareAI = env.AI;
-      
-      let userMessage = "";
-      let chatId = null;
-      
-      // แยกแยะว่ามาจาก Flutter หรือ Telegram
-      const isFromFlutter = contentType.includes("application/json") && !request.headers.get("user-agent")?.includes("Telegram");
-
-      try {
-        let parsedBody;
-        if (isFromFlutter) {
-          parsedBody = await request.json();
-          userMessage = (parsedBody.dtc_code || parsedBody.message || "").toString();
-        } else {
-          parsedBody = await request.json();
-          if (parsedBody.message && parsedBody.message.text) {
-            chatId = parsedBody.message.chat.id;
-            userMessage = (parsedBody.message.text || "").toString();
-          }
-        }
-      } catch (e) {
-        return new Response(JSON.stringify({ error: "Invalid JSON format" }), { 
-          status: 400, 
-          headers: { "Content-Type": "application/json" }
-        });
-      }
-
-      if (userMessage.length === 0) {
-        return new Response(JSON.stringify({ error: "No message provided" }), { 
-          status: 400, 
-          headers: { "Content-Type": "application/json" }
-        });
-      }
-
-      // 🧠 พรอมต์ช่างบอยอัจฉริยะ
-      const systemPrompt = `คุณคือ "ช่างบอย อัจฉริยะ" ช่างซ่อมและวิเคราะห์ปัญหามอเตอร์ไซค์น้ำมัน และมอเตอร์ไซค์ไฟฟ้า (EV) ทุกรุ่น
+    // 🧠 ระบบคำสั่งควบคุมการวิเคราะห์อาการซ่อมรถของช่างบอย
+    const systemPrompt = `คุณคือ "ช่างบอย อัจฉริยะ" ช่างซ่อมและวิเคราะห์ปัญหามอเตอร์ไซค์น้ำมัน และมอเตอร์ไซค์ไฟฟ้า (EV) ทุกรุ่น
 หน้าที่ของคุณคือการช่วยเหลือผู้ใช้ โดยตอบกลับเป็นภาษาไทยที่สุภาพ เป็นกันเองเหมือนช่างคุยกับลูกค้า และจัดหมวดหมู่ข้อมูลให้ชัดเจน
 
 คำถามหรืออาการจากผู้ใช้: "${userMessage}"
@@ -75,47 +55,49 @@ export default {
 
 (หมายเหตุ: หากผู้ใช้พิมพ์มาสั้นเกินไปจนวิเคราะห์ไม่ได้ ให้สุภาพและถามข้อมูลเพิ่ม เช่น รุ่นรถ, ปี, หรืออาการร่วมอื่นๆ)`;
 
-      // 🚀 เรียกใช้ AI ของ Cloudflare
-      const aiResult = await cloudflareAI.run(
-        "@cf/meta/llama-3.1-8b-instruct-fast",
-        {
-          messages: [
-            { role: "user", content: systemPrompt }
-          ]
-        }
-      );
-
-      const aiResponseText = aiResult.response;
-
-      // 📤 ส่งข้อมูลกลับ
-      if (isFromFlutter) {
-        return new Response(JSON.stringify({ 
-          success: true, 
-          analysis: aiResponseText 
-        }), {
-          headers: { 
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*" 
-          }
-        });
-      } else if (chatId) {
-        return await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: aiResponseText,
-            parse_mode: "Markdown"
-          })
-        });
+    // 🚀 ยิงคำสั่งประมวลผลเข้าสู่ตัวถังระบบ AI ของ Cloudflare โดยตรง
+    const aiResult = await cloudflareAI.run(
+      "@cf/meta/llama-3.1-8b-instruct-fast",
+      {
+        messages: [
+          { role: "user", content: systemPrompt }
+        ]
       }
+    );
+    
+    const aiResponseText = aiResult.response;
 
-      return new Response("OK", { status: 200 });
-    } catch (error) {
-      return new Response(JSON.stringify({ error: error.message }), { 
-        status: 500,
-        headers: { "Content-Type": "application/json" }
+    // 📤 คืนผลลัพธ์ตอบกลับตามแพลตฟอร์มปลายทาง
+    if (isFromFlutter) {
+      return new Response(JSON.stringify({
+        success: true,
+        analysis: aiResponseText
+      }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*" // รองรับการยิงข้ามโดเมนจาก Flutter
+        }
       });
+    } else if (chatId) {
+      // ส่งข้อมูลเข้าทางแชท Telegram บอท
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: aiResponseText,
+          parse_mode: "Markdown"
+        })
+      });
+      return new Response("OK", { status: 200 });
     }
+    
+    return new Response("OK", { status: 200 });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 }
