@@ -1,10 +1,9 @@
-# MotorBoy DTC Telegram Bot - Cloudflare Workers Configuration
 name = "motorboy-dtc-bot"
-main = "./functions/api.js"
-compatibility_date = "2026-07-14"
-account_id = "866cd87cf2afc77d8789e9be1f58030e"
+main = "src/api.js"
+compatibility_date = "2026-07-15"
 
 [vars]
+# ตัวแปรระบบทั่วไป (สำหรับ Token ชั่วคราวแนะนำให้ใส่หน้า GitHub Secrets ดีแล้วครับ)
 
 [ai]
-binding = "AI"
+binding = "AI" # 🎯 คำสั่งสำคัญสำหรับสั่งผูกสิทธิ์ระบบ AI เพื่อปลดล็อก Error 100329

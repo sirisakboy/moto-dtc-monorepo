@@ -1,15 +1,5 @@
 {
   "name": "motorboy-dtc-bot",
-  "version": "1.0.0",
-  "description": "Telegram Bot + AI for Motorcycle/EV DTC Diagnosis",
-  "main": "functions/api.js",
-  "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "preview": "wrangler preview"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "wrangler": "^3.0.0"
-  }
+  "type": "module",
+  "version": "1.0.0"
 }
