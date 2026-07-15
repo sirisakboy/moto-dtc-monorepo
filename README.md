@@ -20,11 +20,10 @@ moto-dtc-monorepo/
 ├── .gitignore                    # ไฟล์ยกเว้นการอัปโหลด
 │
 ├── telegram-bot/                 # Backend: Cloudflare Pages Functions
-│   ├── wrangler.toml             # ตั้งค่า Cloudflare
+│   ├── wrangler.toml             # ตั้งค่า Cloudflare + AI Binding
 │   ├── package.json              # Dependencies
 │   └── functions/
-│       ├── api.js                # API หลัก (รับ DTC จาก Telegram/Flutter)
-│       └── tgpt.wasm             # AI Model (WebAssembly)
+│       └── api.js                # API หลัก (รับ DTC จาก Telegram/Flutter)
 │
 └── flutter_app/                  # Frontend: Flutter Mobile App
     ├── pubspec.yaml              # ตั้งคร้าปลั๊กอิน
@@ -35,6 +34,18 @@ moto-dtc-monorepo/
         └── screens/
             └── scanner_screen.dart # หน้าจอสแกน DTC (Mock)
 ```
+
+## Cloudflare Workers AI Setup
+
+โครงการนี้ใช้ **Cloudflare Workers AI** (ฟรี 10,000 requests/วัน) ไม่ต้องใช้ WASM หรือ API key ภายนอก
+
+### วิธีเปิดใช้งาน Workers AI:
+
+1. ไปที่แผงควบคุม (Dashboard) ของโปรเจกต์ Cloudflare ของคุณ
+2. ไปที่ **Settings > Bindings**
+3. คลิก **Add > เลือก AI**
+4. ที่ **Variable name** ให้พิมพ์: `AI` (ตัวพิมพ์ใหญ่ทั้งหมด)
+5. กด **Save** และทำการ **Redeploy**
 
 ## Quick Start
 
@@ -79,7 +90,9 @@ flutter run
 
 | Variable | Description |
 |---------|------------|
-| `TELEGRAM_BOT_TOKEN` | Bot token จาก BotFather |
+| `TELEGRAM_BOT_TOKEN` | Bot token จาก BotFather (GitHub Secrets) |
+
+> **หมายเหตุ**: Workers AI ใช้ผ่าน `context.env.AI` โดยอัตโนมัติ ไม่ต้องตั้งค่าเพิ่ม
 
 ## การทำงานของระบบ
 
