@@ -1,38 +1,38 @@
-export async function onRequestPost(context) {
-  try {
-    const request = context.request;
-    const contentType = request.headers.get("content-type") || "";
-    
-    // ดึงค่า Telegram Token และออบเจกต์ AI ของ Cloudflare ออกมาใช้งาน
-    const BOT_TOKEN = context.env.TELEGRAM_BOT_TOKEN;
-    const cloudflareAI = context.env.AI; // 🎯 ตัวเชื่อมต่อ AI ในตัว Cloudflare
-    
-    let userMessage = "";
-    let chatId = null;
-    
-    // ตรวจสอบว่าข้อความมาจาก Flutter หรือ Telegram
-    const isFromFlutter = contentType.includes("application/json") && !request.headers.get("user-agent")?.includes("Telegram");
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      const contentType = request.headers.get("content-type") || "";
+      
+      // ดึงค่า Telegram Token และ AI binding
+      const BOT_TOKEN = env.TELEGRAM_BOT_TOKEN;
+      const cloudflareAI = env.AI;
+      
+      let userMessage = "";
+      let chatId = null;
+      
+      // แยกแยะว่ามาจาก Flutter หรือ Telegram
+      const isFromFlutter = contentType.includes("application/json") && !request.headers.get("user-agent")?.includes("Telegram");
 
-    if (isFromFlutter) {
-      const body = await request.json();
-      userMessage = body.dtc_code || body.message || "";
-    } else {
-      const payload = await request.json();
-      if (payload.message && payload.message.text) {
-        chatId = payload.message.chat.id;
-        userMessage = payload.message.text;
+      if (isFromFlutter) {
+        const body = await request.json();
+        userMessage = body.dtc_code || body.message || "";
+      } else {
+        const payload = await request.json();
+        if (payload.message && payload.message.text) {
+          chatId = payload.message.chat.id;
+          userMessage = payload.message.text;
+        }
       }
-    }
 
-    if (!userMessage.trim()) {
-      return new Response(JSON.stringify({ error: "No message provided" }), { 
-        status: 400, 
-        headers: { "Content-Type": "application/json" }
-      });
-    }
+      if (!userMessage.trim()) {
+        return new Response(JSON.stringify({ error: "No message provided" }), { 
+          status: 400, 
+          headers: { "Content-Type": "application/json" }
+        });
+      }
 
-    // 🧠 พรอมต์ช่างบอยอัจฉริยะล็อกโครงสร้างคำตอบ
-    const systemPrompt = `คุณคือ "ช่างบอย อัจฉริยะ" ช่างซ่อมและวิเคราะห์ปัญหามอเตอร์ไซค์น้ำมัน และมอเตอร์ไซค์ไฟฟ้า (EV) ทุกรุ่น
+      // 🧠 พรอมต์ช่างบอยอัจฉริยะ
+      const systemPrompt = `คุณคือ "ช่างบอย อัจฉริยะ" ช่างซ่อมและวิเคราะห์ปัญหามอเตอร์ไซค์น้ำมัน และมอเตอร์ไซค์ไฟฟ้า (EV) ทุกรุ่น
 หน้าที่ของคุณคือการช่วยเหลือผู้ใช้ โดยตอบกลับเป็นภาษาไทยที่สุภาพ เป็นกันเองเหมือนช่างคุยกับลูกค้า และจัดหมวดหมู่ข้อมูลให้ชัดเจน
 
 คำถามหรืออาการจากผู้ใช้: "${userMessage}"
@@ -55,46 +55,47 @@ export async function onRequestPost(context) {
 
 (หมายเหตุ: หากผู้ใช้พิมพ์มาสั้นเกินไปจนวิเคราะห์ไม่ได้ ให้สุภาพและถามข้อมูลเพิ่ม เช่น รุ่นรถ, ปี, หรืออาการร่วมอื่นๆ)`;
 
-    // 🚀 เรียกใช้สมองกล AI ของ Cloudflare โดยตรง (ใช้โมเดล Llama 3 ของ Meta ที่รันอยู่บนเซิร์ฟเวอร์ Cloudflare)
-    const aiResult = await cloudflareAI.run(
-      "@cf/meta/llama-3-8b-instruct",
-      {
-        messages: [
-          { role: "user", content: systemPrompt }
-        ]
-      }
-    );
-
-    const aiResponseText = aiResult.response;
-
-    // 📤 ส่งข้อมูลผลการวิเคราะห์กลับไปยังผู้ใช้งาน
-    if (isFromFlutter) {
-      return new Response(JSON.stringify({ 
-        success: true, 
-        analysis: aiResponseText 
-      }), {
-        headers: { 
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*" 
+      // 🚀 เรียกใช้ AI ของ Cloudflare
+      const aiResult = await cloudflareAI.run(
+        "@cf/meta/llama-3-8b-instruct",
+        {
+          messages: [
+            { role: "user", content: systemPrompt }
+          ]
         }
-      });
-    } else if (chatId) {
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: aiResponseText,
-          parse_mode: "Markdown"
-        })
-      });
-      return new Response("OK", { status: 200 });
-    }
+      );
 
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
+      const aiResponseText = aiResult.response;
+
+      // 📤 ส่งข้อมูลกลับ
+      if (isFromFlutter) {
+        return new Response(JSON.stringify({ 
+          success: true, 
+          analysis: aiResponseText 
+        }), {
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*" 
+          }
+        });
+      } else if (chatId) {
+        return await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: aiResponseText,
+            parse_mode: "Markdown"
+          })
+        });
+      }
+
+      return new Response("OK", { status: 200 });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), { 
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
   }
 }
