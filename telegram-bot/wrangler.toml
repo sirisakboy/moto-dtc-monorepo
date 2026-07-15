@@ -2,9 +2,9 @@
 name = "motorboy-dtc-bot"
 main = "./functions/api.js"
 compatibility_date = "2026-07-14"
+account_id = "866cd87cf2afc77d8789e9be1f58030e"
 
 [vars]
-TELEGRAM_BOT_TOKEN = "set-via-secret"
 
 [ai]
 binding = "AI"
