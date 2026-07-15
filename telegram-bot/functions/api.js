@@ -1,8 +1,20 @@
 export default {
   async fetch(request, env, ctx) {
     try {
+      if (request.method !== 'POST') {
+        return new Response("OK - Use POST for analysis", { status: 200 });
+      }
+
       const contentType = request.headers.get("content-type") || "";
+      const contentLength = request.headers.get("content-length");
       
+      if (!contentLength || parseInt(contentLength) === 0) {
+        return new Response(JSON.stringify({ error: "Empty request body" }), { 
+          status: 400, 
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+
       // ดึงค่า Telegram Token และ AI binding
       const BOT_TOKEN = env.TELEGRAM_BOT_TOKEN;
       const cloudflareAI = env.AI;
@@ -13,18 +25,26 @@ export default {
       // แยกแยะว่ามาจาก Flutter หรือ Telegram
       const isFromFlutter = contentType.includes("application/json") && !request.headers.get("user-agent")?.includes("Telegram");
 
-      if (isFromFlutter) {
-        const body = await request.json();
-        userMessage = body.dtc_code || body.message || "";
-      } else {
-        const payload = await request.json();
-        if (payload.message && payload.message.text) {
-          chatId = payload.message.chat.id;
-          userMessage = payload.message.text;
+      try {
+        let parsedBody;
+        if (isFromFlutter) {
+          parsedBody = await request.json();
+          userMessage = (parsedBody.dtc_code || parsedBody.message || "").toString();
+        } else {
+          parsedBody = await request.json();
+          if (parsedBody.message && parsedBody.message.text) {
+            chatId = parsedBody.message.chat.id;
+            userMessage = (parsedBody.message.text || "").toString();
+          }
         }
+      } catch (e) {
+        return new Response(JSON.stringify({ error: "Invalid JSON format" }), { 
+          status: 400, 
+          headers: { "Content-Type": "application/json" }
+        });
       }
 
-      if (!userMessage.trim()) {
+      if (userMessage.length === 0) {
         return new Response(JSON.stringify({ error: "No message provided" }), { 
           status: 400, 
           headers: { "Content-Type": "application/json" }
