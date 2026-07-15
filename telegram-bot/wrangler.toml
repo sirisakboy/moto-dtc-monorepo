@@ -1,18 +1,10 @@
-# MotorBoy DTC Telegram Bot - Cloudflare Pages Configuration
+# MotorBoy DTC Telegram Bot - Cloudflare Workers Configuration
 name = "motorboy-dtc-bot"
-main = "functions/api.js"
+main = "./functions/api.js"
 compatibility_date = "2026-07-14"
-workers_dev = true
 
 [vars]
-# Telegram Bot Token - set via: npx wrangler secret put TELEGRAM_BOT_TOKEN
+TELEGRAM_BOT_TOKEN = "set-via-secret"
 
 [ai]
 binding = "AI"
-
-[build]
-command = "npm install"
-cwd = "./"
-
-[build.upload]
-format = "service-worker"
